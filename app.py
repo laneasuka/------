@@ -13,21 +13,21 @@ BC = '03'
 POL = '04'
 PAIR = '05'
 
-CW1 = pyb.Pin('Y1', pyb.Pin.OUT_PP, pyb.Pin.PULL_DOWN)
-CL1 = pyb.Pin('Y2', pyb.Pin.IN)
+CW1 = pyb.Pin('Y1', pyb.Pin.OUT_PP, pyb.Pin.PULL_DOWN) # 高有效
+CL1 = pyb.Pin('Y2', pyb.Pin.IN) # 低有效
 CW2 = pyb.Pin('Y3', pyb.Pin.OUT_PP, pyb.Pin.PULL_DOWN)
 CL2 = pyb.Pin('Y4', pyb.Pin.IN)
 CW3 = pyb.Pin('Y5', pyb.Pin.OUT_PP, pyb.Pin.PULL_DOWN)
 CL3 = pyb.Pin('Y6', pyb.Pin.IN)
 CW4 = pyb.Pin('Y7', pyb.Pin.OUT_PP, pyb.Pin.PULL_DOWN)
 CL4 = pyb.Pin('Y8', pyb.Pin.IN)
-DV = pyb.Pin('Y12', pyb.Pin.IN)
-DDO_EN = pyb.Pin('Y11', pyb.Pin.OUT_PP, pyb.Pin.PULL_DOWN)
-DG_EN = pyb.Pin('X1', pyb.Pin.OUT_PP, pyb.Pin.PULL_UP)
-BP = pyb.Pin('X2', pyb.Pin.OUT_PP, pyb.Pin.PULL_DOWN)
-SP = pyb.Pin('X11', pyb.Pin.OUT_PP, pyb.Pin.PULL_DOWN)
-ANSWER = pyb.Pin('X11', pyb.Pin.IN)
-RSTB = pyb.Pin('X18', pyb.Pin.OUT_PP, pyb.Pin.PULL_UP)
+DV = pyb.Pin('Y12', pyb.Pin.IN) # 高有效
+DDO_EN = pyb.Pin('Y11', pyb.Pin.OUT_PP, pyb.Pin.PULL_DOWN) # 高有效
+DG_EN = pyb.Pin('X1', pyb.Pin.OUT_PP, pyb.Pin.PULL_UP) # 低有效
+BP = pyb.Pin('X2', pyb.Pin.OUT_PP, pyb.Pin.PULL_DOWN) # 高有效
+SP_EN = pyb.Pin('X11', pyb.Pin.OUT_PP, pyb.Pin.PULL_DOWN) # 低有效
+ANSWER = pyb.Pin('X11', pyb.Pin.IN) # 低有效
+RSTB = pyb.Pin('X18', pyb.Pin.OUT_PP, pyb.Pin.PULL_UP) # 低有效
 D0 = pyb.Pin('X19')
 D1 = pyb.Pin('X20')
 D2 = pyb.Pin('X21')
@@ -51,6 +51,7 @@ accel = pyb.Accel()
 class FM1288():
     def __init__(self, ):
         self.ser = pyb.UART(1, 9600, timeout=100)
+        # TODO: Add Functions
 
 class RF():
     def __init__(self, id=ID, cmd=DFT, ch=5, vl=0, st=0):
@@ -112,6 +113,7 @@ class RF():
 
 class LCD():
     def __init__(self, ):
+        # TODO: LCD
         pass
 
 
