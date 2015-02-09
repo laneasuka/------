@@ -51,7 +51,120 @@ accel = pyb.Accel()
 class FM1288():
     def __init__(self, ):
         self.ser = pyb.UART(1, 9600, timeout=100)
-        # TODO: Add Functions
+        self.set_bypass(0)
+        self.mem_write(0x22f8, 0x8000) # 1mic 8k (VDA setup)
+        self.mem_write(0x22f8, 0) # choose profile
+        self.mem_write(0x2301, 0x12) # 16KHz MIC/SPK sample rate, PCM/I2S data rate set to 8KHz
+        self.mem_write(0x2302, 0x1) # Bits[1:0]: number of microphones. Bit[4]: uni_omni Bit[8]: PSEUDO-2mic
+        self.mem_write(0x22fb, 0) # let IC run after configuration is done
+
+    def lreg_write(self, addr, data):
+        self.ser.write(struct.pack('>HBBH', 0xfcf3, 0x6a, addr, data))
+
+    def sreg_write(self, addr, data):
+        self.ser.write(struct.pack('>HBBB', 0xfcf3, 0x68, addr, data))
+
+    def mem_write(self, addr, data):
+        self.ser.write(struct.pack('>HBHH', 0xfcf3, 0x3b, addr, data))
+
+    def reg_read(self, addr):
+        self.ser.write(struct.pack('>HBB', 0xfcf3, 0x60, addr))
+        return self.ser.readall()
+
+    def mem_read(self, addr):
+        self.ser.write(struct.pack('>HBH', 0xfcf3, 0x37, addr))
+        self.reg_read('26')
+        self.reg_read('25')
+        return self.ser.readall()
+
+    def reset(self):
+        self.lreg_write(0x2a, 0x30) # long_reg_write
+
+    def set_ADPGA(self, value):
+        """
+        Gain Selection /PGA Gain Setting /Differential full scale Input /Bypass Communication Gain
+            Value              (dB)               Signal  (Vpp)                       (dB)
+
+          [ 0 0 0 0 ]            0                       2.83                           -2
+
+          [ 0 0 0 1 ]            1                       2.52                           -1
+
+          [ 0 0 1 0 ]            2                       2.25                           0
+
+          [ 0 0 1 1 ]            4                       1.78                           2
+
+          [ 0 1 0 0 ]            6                       1.42                           4
+
+          [ 0 1 0 1 ]            8                       1.13                           6
+
+          [ 0 1 1 0 ]            10                      0.89                           8
+
+          [ 0 1 1 1 ]            12                      0.71                           10
+
+          [ 1 0 0 0 ]            14                      0.56                           12
+
+          [ 1 0 0 1 ]            16                      0.45                           14
+
+          [ 1 0 1 0 ]            18                      0.36                           16
+
+          [ 1 0 1 1 ]            20                      0.28                           18
+
+          [ 1 1 0 0 ]            22                      0.22                           20
+
+          [ 1 1 0 1 ]            24                      0.18                           22
+
+          [ 1 1 1 0 ]            26                      0.14                           24
+
+          [ 1 1 1 1 ]            28                      0.11                           26
+        :param value:
+        :return:
+        """
+        self.mem_write(0x22e5, value)
+
+    def set_DAPGA(self, value):
+        """
+        Gain Selection   /PGA Gain Setting  /Differential full scale Output /Bypass Communication Gain
+                 Value                 (dB)               Signal (Vpp)                         (dB)
+
+        [ 0 0 0 0 ]               +2                    3.00                            0
+
+        [ 0 0 0 1 ]                0                    2.40                            -2
+
+        [ 0 0 1 0 ]               -2                    1.91                            -4
+
+        [ 0 0 1 1 ]               -4                    1.51                            -6
+
+        [ 0 1 0 0 ]               -6                    1.20                            -8
+
+        [ 0 1 0 1 ]               -8                    0.95                           -10
+
+        [ 0 1 1 0 ]               -10                   0.76                           -12
+
+        [ 0 1 1 1 ]               -12                   0.60                           -14
+
+        [ 1 0 0 0 ]               -14                   0.48                           -16
+
+        [ 1 0 0 1 ]               -16                   0.38                           -18
+
+        [ 1 0 1 0 ]               -18                   0.30                           -20
+
+        [ 1 0 1 1 ]               -20                   0.24                           -22
+
+        [ 1 1 0 0 ]               -22                   0.19                           -24
+
+        [ 1 1 0 1 ]               -24                   0.15                           -26
+
+        [ 1 1 1 0 ]               -26                   0.12                           -28
+
+        [ 1 1 1 1 ]               -28                   0.09                           -30
+        :param value:
+        :return:
+        """
+        self.mem_write(0x22e9, value)
+
+    def set_bypass(self, stat):
+         BP.value(stat)
+
 
 class RF():
     def __init__(self, id=ID, cmd=DFT, ch=5, vl=0, st=0):
@@ -116,6 +229,17 @@ class LCD():
         # TODO: LCD
         pass
 
+def get_key():
+    #i2cKey.scan()
+    i2cKEY.send(0xb0, 0x58)
+    if i2cKEY.is_ready(0x58):
+        i2cKEY.send(0x10, 0x58)
+        if i2cKEY.is_ready(0x58):
+            return i2cKEY.recv(0x10, 0x58)
+    return i2cKEY.mem_read(1, 0x58, 0x10)
+    i2cKEY.mem_write(0x10, 0x58, 0x08)
+
+intbKEY.callback(get_key)
 
 def bulin(tm):
     for i in range(1,5):
