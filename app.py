@@ -226,8 +226,50 @@ class RF():
 
 class LCD():
     def __init__(self, ):
-        # TODO: LCD
-        pass
+        """
+        cs  高有效
+        写指令: 0b11111000(0xf8) + 高四位xxxx0000 + 低四位xxxx0000
+        写数据: 0b11111010(0xfa) + 高四位xxxx0000 + 低四位xxxx0000
+        """
+        self.spi = pyb.SPI(1, pyb.SPI.MASTER, baudrate=200000, polarity=0, phase=0)
+        self.cs = pyb.Pin('X5', pyb.Pin.OUT_PP, pyb.Pin.PULL_UP)
+        self.send_cmd(0x30)  # set mode base
+        #self.lcd.send_cmd(0x34)  # set mode ext
+        self.send_cmd(0x0c)  # display on, cursor off, select off
+        self.send_cmd(0x01)  # clear
+        self.send_cmd(0x06)  # cursor right move
+
+    def send_cmd(self, cmd):
+        self.cs.high()
+        self.spi.send(0xf8)
+        pyb.delay(1)
+        self.spi.send(cmd&0xf0)
+        pyb.delay(1)
+        self.spi.send(cmd<<4&0xf0)
+        pyb.delay(1)
+        self.cs.low()
+
+    def send_dat(self, dat):
+        self.cs.high()
+        self.spi.send(0xfa)
+        pyb.delay(1)
+        if dat:
+            for d in dat:
+                self.spi.send(d&0xf0)
+                pyb.delay(1)
+                self.spi.send(d<<4&0xf0)
+                pyb.delay(1)
+        else:
+            self.spi.send(dat&0xf0)
+            pyb.delay(1)
+            self.spi.send(dat<<4&0xf0)
+            pyb.delay(1)
+        self.cs.low()
+
+    def send_char(self, x, y, c):
+        self.send_cmd(0x80 + x)
+        self.send_cmd(0x80 + y)
+        self.send_dat(c)
 
 def get_key():
     #i2cKey.scan()
@@ -239,7 +281,7 @@ def get_key():
     return i2cKEY.mem_read(1, 0x58, 0x10)
     i2cKEY.mem_write(0x10, 0x58, 0x08)
 
-intbKEY.callback(get_key)
+#intbKEY.callback(get_key)
 
 def bulin(tm):
     for i in range(1,5):
