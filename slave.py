@@ -375,7 +375,7 @@ if __name__ == '__main__':
             start = pyb.millis()
     
     def response_key():
-        for i in range(1):
+        for i in range(4):
             if cl_list[i].value() and rf.st == 0:
                 call('%s%s%d%s' %(GP, ID, i+1, CAL), cw_list[i])
     

@@ -497,7 +497,6 @@ if __name__ == '__main__':
 
     while 1:
         slaveID = rcv_id()
-
         if slaveID and (slaveID != currID):
             print(currID, slaveID)
             currID = slaveID
