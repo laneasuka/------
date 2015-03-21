@@ -1,5 +1,5 @@
 #-*- coding:utf-8 -*-
-import struct, pyb
+import struct
 ## import micropython
 ## micropython.alloc_emergency_exception_buf(100)
 GP = '10'
@@ -348,10 +348,13 @@ if __name__ == '__main__':
 ##     t14.callback(lambda t:recive())
         
     def pick_off():
+        global currID
         SP_EN.high()
         if currID:
-            rf.set_id('00%s%s' %(currID[2:6], PD))
+            currID = '00%s%s' %(currID[2:6], PD)
+            rf.set_id(currID)
 ##             rf.set_st(1)
+        rf.set_st(1)
         rf.set_st(0)
         extint2.disable()
         PLARUN_LED.off()
@@ -366,7 +369,7 @@ if __name__ == '__main__':
             lcd.clear(3)
             lcd.send_dat(b'\xd7\xb4\xcc\xac\xa3\xba\xd5\xfd\xd4\xda\xba\xf4\xbd\xd0..', 3, 0) # 状态：正在呼叫..
             pyb.delay(1000)
-            if 1:#rf.rssi():
+            if rf.rssi():
                 lcd.clear(3)
                 lcd.send_dat(b'\xd7\xb4\xcc\xac\xa3\xba\xcd\xa8\xbb\xb0\xd6\xd0...', 3, 0) # 状态：通话中...
                 SP_EN.low()
@@ -442,31 +445,32 @@ if __name__ == '__main__':
             return ''
             
     def als_id(id):
-        global currID, start
+        global currID, start, kl
         if id[2:6] in slave_list:
             if id[6:8] == CAL and rf.st == 0 and ANSWER.value() == 1:
-                rf.set_st(2)
-                rf.set_st(2)
-                if 1:#rf.rssi():
-                    print(rf.st)
-                    extint2.enable()
-                    PLARUN_LED.on()
-                    SP_EN.low()
-                    currID = id
-                    lcd.clear(2)
-                    lcd.send_dat(b'\xba\xc5\xc2\xeb\xa3\xba' + str(int(id[2:6])), 2, 0) # 号码：
-                    lcd.clear(3)
-                    lcd.send_dat(b'\xb7\xd6\xbb\xfa' + str(int(id[2:6])) + b'\xba\xf4\xbd\xd0', 3, 0) # 分机xx呼叫
-                    start = pyb.millis()
-                    while ANSWER.value():
-                        dtmf.set([1])
-                        pyb.delay(1000)
-                        if pyb.elapsed_millis(start) > 20000:
-                            pick_off()
-                            break
-                    start = pyb.millis()
-##                 else:
-##                     pick_off()
+                for i in range(3):
+                    rf.set_st(2)
+                    rf.set_st(2)
+                    if rf.rssi():
+                        rf.set_st(2)
+                        extint2.enable()
+                        PLARUN_LED.on()
+                        SP_EN.low()
+                        currID = id
+                        kl = id[2:6].encode()
+                        lcd.clear(2)
+                        lcd.send_dat(b'\xba\xc5\xc2\xeb\xa3\xba' + kl, 2, 0) # 号码：
+                        lcd.clear(3)
+                        lcd.send_dat(b'\xb7\xd6\xbb\xfa' + kl + b'\xba\xf4\xbd\xd0', 3, 0) # 分机xx呼叫
+                        start = pyb.millis()
+                        while ANSWER.value():
+                            dtmf.set([1])
+                            pyb.delay(1000)
+                            if pyb.elapsed_millis(start) > 20000:
+                                pick_off()
+                                break
+                        start = pyb.millis()
+                        break
             elif id[6:8] == PD and rf.st != 0:
                 pass
 ##                 pick_off()
@@ -493,8 +497,10 @@ if __name__ == '__main__':
 
     while 1:
         slaveID = rcv_id()
-        if slaveID:
-            print(slaveID)
+
+        if slaveID and (slaveID != currID):
+            print(currID, slaveID)
+            currID = slaveID
             als_id(slaveID)
         
         response_key()

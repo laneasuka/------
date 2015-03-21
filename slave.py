@@ -1,5 +1,5 @@
 #-*- coding:utf-8 -*-
-import struct, pyb
+import struct
 ## import micropython
 ## micropython.alloc_emergency_exception_buf(100)
 GP = '00'
@@ -150,7 +150,6 @@ class RF:
         while not rst:# != b'SETST:%s\r\n' %x:
             self.ser.write('SETPH:\r\n')
             rst = self.ser.readall()
-        print(rst)
         return rst[8]&0xf
 
         
@@ -311,8 +310,10 @@ if __name__ == '__main__':
     start = pyb.millis()
     
     def pick_off():
+        global currID
         if currID:
-            rf.set_id('00%s%s' %(currID[2:6], PD))
+            currID = '00%s%s' %(currID[2:6], PD)
+            rf.set_id(currID)
             rf.set_st(1)
         rf.set_st(0)
         for i in cw_list:
@@ -324,8 +325,9 @@ if __name__ == '__main__':
         for i in range(3):
             rf.set_id(num)
             rf.set_st(1)
+            print(i)
             pyb.delay(1000)
-            if 1:#rf.rssi():
+            if rf.rssi():
                 cw.value(1)
                 PLARUN_LED.on()
                 SP_EN.low()
@@ -347,20 +349,20 @@ if __name__ == '__main__':
         global currID, start
         if id[2:5] == ID:
             if id[6:8] == CAL and rf.st == 0:
-                rf.set_st(2)
-                rf.set_st(2)
-                if 1:#rf.rssi():
-                    try:
-                        cw_list[int(id[5]) - 1].value(1)
-                        PLARUN_LED.on()
-                        SP_EN.low()
-                        currID = id
-                        start = pyb.millis()
-                    except:
-                        print('out cw_list')
-##                 else:
-##                     rf.set_st(0)
-##                     rf.set_st(0)
+                for i in range(3):
+                    rf.set_st(2)
+                    rf.set_st(2)
+                    if rf.rssi():
+                        try:
+                            cw_list[int(id[5]) - 1].value(1)
+                            PLARUN_LED.on()
+                            SP_EN.low()
+                            currID = id
+                            start = pyb.millis()
+                            break
+                        except:
+                            print('out cw_list')
+                            break
             elif id[6:8] == PD and rf.st != 0:
                 pick_off()
         
@@ -379,14 +381,12 @@ if __name__ == '__main__':
     
     while 1:
         slaveID = rcv_id()
-        if slaveID:
+        if slaveID and (slaveID != currID):
             print(slaveID)
+            currID = slaveID
             als_id(slaveID)
         
         response_key()
         
         if rf.st != 0:
             check_pd()
-
-    
-
