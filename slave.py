@@ -1,5 +1,5 @@
 #-*- coding:utf-8 -*-
-import struct
+import os, struct, ujson
 ## import micropython
 ## micropython.alloc_emergency_exception_buf(100)
 GP = '00'
@@ -33,6 +33,22 @@ PLARUN_LED = pyb.LED(3)
 SAFE_LED = pyb.LED(2)
 REC_LED = pyb.LED(1)
 intbKEY = pyb.Switch()
+
+def load():
+    if 'slave.ini' in os.listdir():
+        with open('slave.ini') as f:
+            return ujson.loads(f.read())
+    else:
+        args = {'id':'00001000', 'ch':5, 'vl':13}
+        with open('slave.ini', 'w') as f:
+            f.write(ujson.dumps(args))
+            return args
+
+def save(**d):
+    args = load()
+    args.update(d)
+    with open('slave.ini', 'w') as f:
+        f.write(ujson.dumps(args))
 
 def init():
     CW1.value(0)
@@ -297,6 +313,7 @@ class DTMF:
 
 
 if __name__ == '__main__':
+    rf_args = load()
     slaveID = ''
     currID = ''
     cl_list = [CL1, CL2, CL3, CL4]
@@ -304,7 +321,10 @@ if __name__ == '__main__':
     init()
     fm = FM1288()
     dtmf = DTMF()
-    rf = RF(id='00001100', ch=5, vl=13, st=0)
+    rf = RF(id=rf_args['id'], ch=rf_args['ch'], vl=rf_args['vl'], st=0)
+    
+    import wave
+    dac = pyb.DAC(1)
     
     extint = pyb.ExtInt(DV, pyb.ExtInt.IRQ_RISING, pyb.Pin.PULL_NONE, lambda x:dtmf.get())
     start = pyb.millis()
@@ -321,7 +341,7 @@ if __name__ == '__main__':
         PLARUN_LED.off()
         
     def call(num, cw):
-        global currID, start
+        global currID, start      
         for i in range(3):
             rf.set_id(num)
             rf.set_st(1)
@@ -332,6 +352,9 @@ if __name__ == '__main__':
                 PLARUN_LED.on()
                 SP_EN.low()
                 currID = num
+                f = wave.open('1.wav')
+                dac.write_timed(f.readframes(f.getnframes()), f.getframerate())
+                del f
                 start = pyb.millis()
                 return
         rf.set_id(num[:6] + PD)
@@ -390,3 +413,6 @@ if __name__ == '__main__':
         
         if rf.st != 0:
             check_pd()
+
+    
+

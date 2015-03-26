@@ -1,5 +1,5 @@
 #-*- coding:utf-8 -*-
-import struct
+import os, struct, ujson
 ## import micropython
 ## micropython.alloc_emergency_exception_buf(100)
 GP = '10'
@@ -37,6 +37,22 @@ intbKEY = pyb.Switch()
 nkmap = {64:'1', 72:'2', 80:'3', 65:'4', 73:'5', 120:'6', 81:'7', 89:'8', 97:'9', 66:'0'}
 skmap = {121:'*', 74:'#', 88:'set', 104:'msg', 105:'rcd', 82:'cal', 96:'sch', 112:'vlu', 113:'vld', 90:'lck'}
 
+def load():
+    if 'master.ini' in os.listdir():
+        with open('master.ini') as f:
+            return ujson.loads(f.read())
+    else:
+        args = {'id':'10000000', 'ch':5, 'vl':12}
+        with open('master.ini', 'w') as f:
+            f.write(ujson.dumps(args))
+            return args
+
+def save(**d):
+    args = load()
+    args.update(d)
+    with open('master.ini', 'w') as f:
+        f.write(ujson.dumps(args))
+        
 def init():
     CW1.value(0)
     CW2.value(0)
@@ -304,6 +320,7 @@ class DTMF:
 msg = b'\xce\xde\xcf\xdf\xb6\xd4\xbd\xb2\xcf\xb5\xcd\xb3'
 
 if __name__ == '__main__':
+    rf_args = load()
     keybuf = bytearray(1)
     kl = b''
     off_flag = 0
@@ -315,7 +332,7 @@ if __name__ == '__main__':
     lcd.clear()
     fm = FM1288()
     dtmf = DTMF()
-    rf = RF(id='10000000', ch=5, vl=12, st=0)
+    rf = RF(id=rf_args['id'], ch=rf_args['ch'], vl=rf_args['vl'], st=0)
     rf.rcv_clear()
     key = KEY()
     key.write(0b1010000) #auto clear init
@@ -464,7 +481,7 @@ if __name__ == '__main__':
                         lcd.send_dat(b'\xb7\xd6\xbb\xfa' + kl + b'\xba\xf4\xbd\xd0', 3, 0) # 分机xx呼叫
                         start = pyb.millis()
                         while ANSWER.value():
-                            dtmf.set([1])
+##                             dtmf.set([1])
                             pyb.delay(1000)
                             if pyb.elapsed_millis(start) > 20000:
                                 pick_off()
@@ -497,6 +514,7 @@ if __name__ == '__main__':
 
     while 1:
         slaveID = rcv_id()
+
         if slaveID and (slaveID != currID):
             print(currID, slaveID)
             currID = slaveID
