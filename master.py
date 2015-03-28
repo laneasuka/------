@@ -11,6 +11,7 @@ BC = '03'
 POL = '04'
 PAIR = '05'
 PD = '06'
+LOGMAX = 100
 
 CW1 = pyb.Pin('Y1', pyb.Pin.OUT_PP, pyb.Pin.PULL_DOWN) # 高有效
 CL1 = pyb.Pin('Y2', pyb.Pin.IN) # 低有效
@@ -33,9 +34,17 @@ PLARUN_LED = pyb.LED(3)
 SAFE_LED = pyb.LED(2)
 REC_LED = pyb.LED(1)
 intbKEY = pyb.Switch()
+rtc = pyb.RTC()
 
 nkmap = {64:'1', 72:'2', 80:'3', 65:'4', 73:'5', 120:'6', 81:'7', 89:'8', 97:'9', 66:'0'}
 skmap = {121:'*', 74:'#', 88:'set', 104:'msg', 105:'rcd', 82:'cal', 96:'sch', 112:'vlu', 113:'vld', 90:'lck'}
+
+def count_lines(filename): 
+    cnt = 0
+    with open(filename) as f:
+        for _ in f:
+            cnt += 1
+    return cnt
 
 def load():
     if 'master.ini' in os.listdir():
@@ -52,7 +61,51 @@ def save(**d):
     args.update(d)
     with open('master.ini', 'w') as f:
         f.write(ujson.dumps(args))
-        
+    
+def savelog(filename, num, drc):
+    now = rtc.datetime()
+    with open(filename, 'a') as f:
+        if count_lines(filename) > LOGMAX:
+            f.seek(0)
+        f.write('%02d-%02d %02d:%02d:%02d\n%04d %s\n'%(now[1:3] + now[4:7] + (num,drc)))
+    
+def viewlog(filename):
+    start = pyb.millis()
+    with open(filename) as f:
+        i1 = f.readline()
+        i2 = f.readline()
+        if i1:
+            lcd.clear(2)
+            lcd.send_dat(i1.rstrip(), 2, 0)
+        if i2:
+            lcd.clear(3)
+            lcd.send_dat('1: %s' %i2.rstrip(), 3, 0)
+        while pyb.elapsed_millis(start) < 30000:
+            k = keybuf[0]
+            keybuf[0] = 0
+            if k in skmap:
+                if skmap[k] == 'vld':
+                    start = pyb.millis()
+                    i1 = f.readline()
+                    i2 = f.readline()
+                    if i1:
+                        lcd.clear(2)
+                        lcd.send_dat(i1.rstrip(), 2, 0)
+                    if i2:
+                        lcd.clear(3)
+                        lcd.send_dat('%d: %s' %(f.tell()//26, i2.rstrip()), 3, 0)
+                elif skmap[k] == 'vlu':
+                    start = pyb.millis()
+                    if f.tell() >= 52:
+                        f.seek(f.tell() - 52)
+                        lcd.clear(2)
+                        lcd.send_dat(f.readline().rstrip(), 2, 0)
+                        lcd.clear(3)
+                        lcd.send_dat('%d: %s' %(f.tell()//26+1, f.readline().rstrip()), 3, 0)
+                elif skmap[k] == 'sch':
+                    break
+    welcome()
+    
 def init():
     CW1.value(0)
     CW2.value(0)
@@ -338,10 +391,14 @@ if __name__ == '__main__':
     key.write(0b1010000) #auto clear init
     
     rf_stat = rf.ch, rf.vl, rf.st
-    lcd.send_dat(msg, 0, 1)
-    lcd.send_dat(b'CH:%d VL:%02d ST:%d' %(rf.ch, rf.vl, rf.st), 1, 0)
-    lcd.send_dat('----TIBOSHI----', 2, 0)
-    lcd.send_dat(b'\xd7\xb4\xcc\xac\xa3\xba\xbe\xcd\xd0\xf7', 3, 0) # '状态：就绪'
+    
+    def welcome():
+        lcd.clear()
+        lcd.send_dat(msg, 0, 1)
+        lcd.send_dat(b'CH:%d VL:%02d ST:%d' %(rf.ch, rf.vl, rf.st), 1, 0)
+        lcd.send_dat('----TIBOSHI----', 2, 0)
+        lcd.send_dat(b'\xd7\xb4\xcc\xac\xa3\xba\xbe\xcd\xd0\xf7', 3, 0) # '状态：就绪'
+    welcome()
     
     start = pyb.millis()
     
@@ -393,6 +450,7 @@ if __name__ == '__main__':
                 extint2.enable()
                 PLARUN_LED.on()
                 currID = num
+                savelog('call.log', int(num[2:6]), '[OUT]')
                 start = pyb.millis()
                 return
         rf.set_id(num[:6] + PD)
@@ -439,7 +497,9 @@ if __name__ == '__main__':
                 pick_off()
             elif skmap[kp] == 'sch':
                 lcd.clear(3)
-                lcd.send_dat(b'RcvID:' + slaveID, 3, 0)
+##                 lcd.send_dat(b'RcvID:' + slaveID, 3, 0)
+                lcd.send_dat('Call Log', 3, 0)
+                viewlog('call.log')
 ##                 lcd.send_dat(b'DRCV:' + str(dtmf.rcv), 3, 0)
             elif skmap[kp] == 'msg':
                 extint.disable()
@@ -463,8 +523,10 @@ if __name__ == '__main__':
             
     def als_id(id):
         global currID, start, kl
-        if id[2:6] in slave_list:
-            if id[6:8] == CAL and rf.st == 0 and ANSWER.value() == 1:
+        nb = id[2:6]
+        cmd = id[6:8]
+        if nb in slave_list:
+            if cmd == CAL and rf.st == 0 and ANSWER.value() == 1:
                 for i in range(3):
                     rf.set_st(2)
                     rf.set_st(2)
@@ -474,11 +536,12 @@ if __name__ == '__main__':
                         PLARUN_LED.on()
                         SP_EN.low()
                         currID = id
-                        kl = id[2:6].encode()
+                        kl = str(int(nb)).encode()
                         lcd.clear(2)
                         lcd.send_dat(b'\xba\xc5\xc2\xeb\xa3\xba' + kl, 2, 0) # 号码：
                         lcd.clear(3)
                         lcd.send_dat(b'\xb7\xd6\xbb\xfa' + kl + b'\xba\xf4\xbd\xd0', 3, 0) # 分机xx呼叫
+                        savelog('call.log', int(nb), '[ IN]')
                         start = pyb.millis()
                         while ANSWER.value():
 ##                             dtmf.set([1])
@@ -488,7 +551,7 @@ if __name__ == '__main__':
                                 break
                         start = pyb.millis()
                         break
-            elif id[6:8] == PD and rf.st != 0:
+            elif cmd == PD and rf.st != 0:
                 pass
 ##                 pick_off()
     
