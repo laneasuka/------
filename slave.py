@@ -336,6 +336,7 @@ if __name__ == '__main__':
             rf.set_id(currID)
             rf.set_st(1)
         rf.set_st(0)
+        rf.set_st(0)
         for i in cw_list:
             i.value(0)
         PLARUN_LED.off()
@@ -352,9 +353,9 @@ if __name__ == '__main__':
                 PLARUN_LED.on()
                 SP_EN.low()
                 currID = num
-                f = wave.open('1.wav')
-                dac.write_timed(f.readframes(f.getnframes()), f.getframerate())
-                del f
+##                 f = wave.open('1.wav')
+##                 dac.write_timed(f.readframes(f.getnframes()), f.getframerate())
+##                 del f
                 start = pyb.millis()
                 return
         rf.set_id(num[:6] + PD)
@@ -402,6 +403,24 @@ if __name__ == '__main__':
             if cl_list[i].value() and rf.st == 0:
                 call('%s%s%d%s' %(GP, ID, i+1, CAL), cw_list[i])
     
+    def record():
+        if intbKEY():
+            pyb.delay(3000)
+            if intbKEY():
+                stt = pyb.millis()
+                while pyb.elapsed_millis(stt) < 10000:
+                    PLARUN_LED.on()
+                    for i in range(4):
+                        if cl_list[i].value():
+                            PLARUN_LED.off()
+                            cw_list[i].value(1)
+                            REC_LED.on()
+                            pyb.delay(10000)
+                            REC_LED.off()
+                            cw_list[i].value(0)
+                            return
+                PLARUN_LED.off()
+
     while 1:
         slaveID = rcv_id()
         if slaveID and (slaveID != currID):
@@ -414,5 +433,5 @@ if __name__ == '__main__':
         if rf.st != 0:
             check_pd()
 
-    
+        record()
 

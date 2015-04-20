@@ -13,8 +13,8 @@ PAIR = '05'
 PD = '06'
 LOGMAX = 100
 
-CW1 = pyb.Pin('Y1', pyb.Pin.OUT_PP, pyb.Pin.PULL_DOWN) # 高有效
-CL1 = pyb.Pin('Y2', pyb.Pin.IN) # 低有效
+#CW1 = pyb.Pin('Y1', pyb.Pin.OUT_PP, pyb.Pin.PULL_DOWN) # 高有效
+#CL1 = pyb.Pin('Y2', pyb.Pin.IN) # 低有效
 CW2 = pyb.Pin('Y3', pyb.Pin.OUT_PP, pyb.Pin.PULL_DOWN)
 CL2 = pyb.Pin('Y4', pyb.Pin.IN)
 CW3 = pyb.Pin('Y5', pyb.Pin.OUT_PP, pyb.Pin.PULL_DOWN)
@@ -39,6 +39,51 @@ rtc = pyb.RTC()
 nkmap = {64:'1', 72:'2', 80:'3', 65:'4', 73:'5', 120:'6', 81:'7', 89:'8', 97:'9', 66:'0'}
 skmap = {121:'*', 74:'#', 88:'set', 104:'msg', 105:'rcd', 82:'cal', 96:'sch', 112:'vlu', 113:'vld', 90:'lck'}
 
+def clock():
+    start = pyb.millis()
+    nkl = ''
+    lcd.clear()
+    lcd.send_dat(b'\xc9\xe8\xd6\xc3\xb5\xb1\xc7\xb0\xca\xb1\xbc\xe4\xce\xaa\xa3\xba', 0, 0)
+    lcd.send_dat(b'    \xc4\xea  \xd4\xc2  \xc8\xd5', 1, 0)
+    lcd.send_dat(b'  \xca\xb1  \xb7\xd6  \xc3\xeb', 2, 0)
+    lcd.send_dat(b'\xb0\xb4\xca\xfd\xd7\xd6\xbc\xfc\xcd\xea\xb3\xc9\xca\xe4\xc8\xeb', 3, 0)
+    lcd.send_cmd(0x30)
+    lcd.send_cmd(0x90)
+    lcd.send_cmd(0xd)
+    
+    while pyb.elapsed_millis(start) < 30000:
+        k = keybuf[0]
+        keybuf[0] = 0
+        if k in nkmap:
+            start = pyb.millis()
+            nkl += nkmap[k]
+            lcd.send_dat(nkmap[k])
+            lcd.send_cmd(0x30)
+            if len(nkl) == 4:
+                lcd.send_cmd(0x93)
+            elif len(nkl) == 6:
+                lcd.send_cmd(0x95)
+            elif len(nkl) == 8:
+                lcd.send_cmd(0x88)
+            elif len(nkl) == 10:
+                lcd.send_cmd(0x8a)
+            elif len(nkl) == 12:
+                lcd.send_cmd(0x8c)
+            elif len(nkl) == 14:
+                rtc.datetime([int(n) for n in (nkl[0:4], nkl[4:6], nkl[6:8], 0, nkl[8:10], nkl[10:12], nkl[12:14], 0)])
+                print(rtc.datetime())
+                lcd.clear(3)
+                lcd.send_dat(b'\xc9\xe8\xd6\xc3\xb3\xc9\xb9\xa6!', 3, 0)
+                lcd.send_cmd(0x30)
+                lcd.send_cmd(0x90)
+                nkl = ''
+        elif k in skmap:
+            if skmap[k] == 'lck':
+                print(rtc.datetime())
+            elif skmap[k] == 'sch':
+                break
+    welcome()
+    
 def count_lines(filename): 
     cnt = 0
     with open(filename) as f:
@@ -72,6 +117,8 @@ def savelog(filename, num, drc):
 def viewlog(filename):
     start = pyb.millis()
     with open(filename) as f:
+        total = f.seek(-1)//26
+        f.seek(0)
         i1 = f.readline()
         i2 = f.readline()
         if i1:
@@ -79,7 +126,7 @@ def viewlog(filename):
             lcd.send_dat(i1.rstrip(), 2, 0)
         if i2:
             lcd.clear(3)
-            lcd.send_dat('1: %s' %i2.rstrip(), 3, 0)
+            lcd.send_dat('01/%02d:%s' %(total, i2.rstrip()), 3, 0)
         while pyb.elapsed_millis(start) < 30000:
             k = keybuf[0]
             keybuf[0] = 0
@@ -93,7 +140,7 @@ def viewlog(filename):
                         lcd.send_dat(i1.rstrip(), 2, 0)
                     if i2:
                         lcd.clear(3)
-                        lcd.send_dat('%d: %s' %(f.tell()//26, i2.rstrip()), 3, 0)
+                        lcd.send_dat('%02d/%02d:%s' %(f.tell()//26, total, i2.rstrip()), 3, 0)
                 elif skmap[k] == 'vlu':
                     start = pyb.millis()
                     if f.tell() >= 52:
@@ -101,14 +148,14 @@ def viewlog(filename):
                         lcd.clear(2)
                         lcd.send_dat(f.readline().rstrip(), 2, 0)
                         lcd.clear(3)
-                        lcd.send_dat('%d: %s' %(f.tell()//26+1, f.readline().rstrip()), 3, 0)
+                        lcd.send_dat('%02d/%02d:%s' %(f.tell()//26+1, total, f.readline().rstrip()), 3, 0)
                 elif skmap[k] == 'sch':
                     break
     welcome()
     
 def init():
-    CW1.value(0)
-    CW2.value(0)
+    #CW1.value(0)
+    #CW2.value(0)
     CW3.value(0)
     CW4.value(0)
     DDO_EN.value(0)
@@ -373,6 +420,8 @@ class DTMF:
 msg = b'\xce\xde\xcf\xdf\xb6\xd4\xbd\xb2\xcf\xb5\xcd\xb3'
 
 if __name__ == '__main__':
+    bt = pyb.UART(6, 115200, timeout=100)
+    #pyb.repl_uart(bt)
     rf_args = load()
     keybuf = bytearray(1)
     kl = b''
@@ -393,6 +442,8 @@ if __name__ == '__main__':
     rf_stat = rf.ch, rf.vl, rf.st
     
     def welcome():
+        lcd.send_cmd(0x30)
+        lcd.send_cmd(0xc)
         lcd.clear()
         lcd.send_dat(msg, 0, 1)
         lcd.send_dat(b'CH:%d VL:%02d ST:%d' %(rf.ch, rf.vl, rf.st), 1, 0)
@@ -492,9 +543,10 @@ if __name__ == '__main__':
                 lcd.clear(1) 
                 lcd.send_dat(b'CH:%d VL:%02d ST:%d' %(rf.ch, rf.vl, rf.st), 1, 0)
             elif skmap[kp] == 'lck':
+                clock()
 ##                 rf.set_id(rf.id,PD)
 ##                 rf.set_st(1)
-                pick_off()
+##                 pick_off()
             elif skmap[kp] == 'sch':
                 lcd.clear(3)
 ##                 lcd.send_dat(b'RcvID:' + slaveID, 3, 0)
